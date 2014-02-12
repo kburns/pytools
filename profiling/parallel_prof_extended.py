@@ -1,7 +1,7 @@
+import pstats_ben as pstats
 import sys
 import os
 import subprocess
-import pstats
 #import gprof2dot
 
 def make_graph(profile, output_png_file, node_thresh=0):
@@ -51,10 +51,38 @@ else:
 
     total_stats.add(*profile_files[1:])
 
+    nightmare = True
+    if nightmare:
+        #for func, stats in total_stats.sort_stats('tottime').stats.items():
+        #    print(total_stats.stats[func])
+
+        # requires modified pstats
+        avg_stats = pstats.Stats(profile_files[0])
+        
+        avg_stats.average(*profile_files[1:])
+        
+    
+        # requires modified pstats
+        mean_stats = pstats.Stats(profile_files[0])
+        
+        mean_stats.mean(*profile_files[1:])
+    
+        # requires modified pstats
+        stddev_stats = pstats.Stats(profile_files[0])
+        
+        stddev_stats.stddev(*profile_files[1:])
+    
     
 print(80*"*")
 total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
 total_stats.dump_stats("full_profile")
+
+if nightmare:
+    avg_stats.strip_dirs().sort_stats('tottime').print_stats(10)
+
+    mean_stats.strip_dirs().sort_stats('tottime').print_stats(10)
+
+    stddev_stats.strip_dirs().sort_stats('tottime').print_stats(10)
 
 
 graph_image = "full_code_profile.png"
