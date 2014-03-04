@@ -4,7 +4,7 @@ import subprocess
 import pstats
 #import gprof2dot
 
-def make_graph(profile, output_png_file, node_thresh=0):
+def make_graph(profile, output_png_file, node_thresh=0.5):
     proc_graph = subprocess.Popen(["./gprof2dot.py", "--skew", "0.5", "-n", "{:f}".format(node_thresh), 
                                    "-f", "pstats", profile], 
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -26,35 +26,39 @@ first_profile = True
 
 individual_core_profile = False
 
-loop_over_all = False
-if loop_over_all:
-    for i_prof, profile in enumerate(profile_files):
-        print("Opening profile: ", profile)
-        stats = pstats.Stats(profile)
 
-        graph_image = "code_profile.{:d}.png".format(i_prof)
+if len(profile_files) > 0:
+    loop_over_all = False
+    if loop_over_all:
+        for i_prof, profile in enumerate(profile_files):
+            print("Opening profile: ", profile)
+            stats = pstats.Stats(profile)
 
-        if individual_core_profile:
-            make_graph(profile, graph_image)
+            graph_image = "code_profile.{:d}.png".format(i_prof)
+
+            if individual_core_profile:
+                make_graph(profile, graph_image)
     
-        stats.strip_dirs().sort_stats('tottime').print_stats(10)
+            stats.strip_dirs().sort_stats('tottime').print_stats(10)
 
-        if first_profile:
-            total_stats = pstats.Stats(profile)
-            first_profile = False
-        else:
-            total_stats.add(profile)
+            if first_profile:
+                total_stats = pstats.Stats(profile)
+                first_profile = False
+            else:
+                total_stats.add(profile)
+
+    else:
+        # fast read-in version
+        total_stats = pstats.Stats(profile_files[0])
+
+        total_stats.add(*profile_files[1:])
+
+    print(80*"*")
+    total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
+    total_stats.dump_stats("full_profile")
 
 else:
-    # fast read-in version
-    total_stats = pstats.Stats(profile_files[0])
-
-    total_stats.add(*profile_files[1:])
-
-    
-print(80*"*")
-total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
-total_stats.dump_stats("full_profile")
+    total_stats = pstats.Stats("full_profile")
 
 
 graph_image = "full_code_profile.png"
@@ -62,4 +66,4 @@ graph_image = "full_code_profile.png"
 make_graph("full_profile", graph_image)
 
 threshhold_image = "above_5_percent.png"
-make_graph("full_profile", threshhold_image, node_thresh=0.05)
+make_graph("full_profile", threshhold_image, node_thresh=5)
