@@ -24,29 +24,36 @@ def make_graph(profile, output_png_file, node_thresh=0.5):
     stdout, stderr = proc_dot.communicate()
 
 def make_pdf(stats_pdf_dict, label='', N_profiles=20):
-    print("creating PDFs over {:d} cpu".format(N_cpu))
 
-    sorted_list = sorted(stats_pdf_dict.items(), key=lambda data_i: np.mean(data_i[1]), reverse=True)
+    sorted_list = sorted(stats_pdf_dict.items(), key=lambda data_i: np.max(data_i[1]), reverse=True)
 
     for i_fig, (func, data_list) in enumerate(sorted_list):
         data = np.array(data_list)
         N_data = data.shape[0]
-        
+
+        print(func, "{:g} |{:g}| {:g}".format(np.min(data), np.mean(data), np.max(data)))
+
+        if func[0] == '~':
+            title_string = func[2]
+        else:
+            title_string = "{:s}:{:d}:{:s}".format(*func)
+            
         hist_values, bin_edges = np.histogram(data, bins=N_cpu)
         fig = plt.figure()
         ax1 = fig.add_subplot(1,2,1)
+
         ax1.plot(bin_edges[1:], hist_values)
-        print(func, )
-        ax1.set_title(func[0]+func[2])
+
+        ax1.set_title(title_string)
         ax2 = fig.add_subplot(1,2,2)
         ax2.bar(np.arange(N_data), data)
         fig.savefig(label+'_{:06d}.png'.format(i_fig+1))
         plt.close(fig)
 
-        if i_fig == N_profiles:
+        if i_fig+1 == N_profiles:
             break
     
-def read_prof_files(profile_files, individual_core_profile=False, database_file='profile_data.db'):
+def read_prof_files(profile_files, individual_core_profile=False, database_file='profile_data.db', stats_file='full_profile.stats', include_dir_info=False):
     first_profile = True
     
     stats_pdf_tt = {}
@@ -55,18 +62,22 @@ def read_prof_files(profile_files, individual_core_profile=False, database_file=
         print("Opening profile: ", profile)
         stats = pstats.Stats(profile)
 
+        if not include_dir_info:
+            stats = stats.strip_dirs()
+
         if individual_core_profile:
             graph_image = "code_profile.{:d}.png".format(i_prof)
             make_graph(profile, graph_image)
     
-            stats.strip_dirs().sort_stats('tottime').print_stats(10)
+            stats.sort_stats('tottime').print_stats(10)
             
         if first_profile:
             first_profile = False
             total_stats = stats
         else:
             total_stats.add(stats)
-        for data in stats.strip_dirs().stats.items():
+
+        for data in stats.stats.items():
             func, (cc, nc, tt, ct, callers) = data
             if func in stats_pdf_tt:
                 stats_pdf_tt[func].append(tt)
@@ -78,30 +89,33 @@ def read_prof_files(profile_files, individual_core_profile=False, database_file=
     N_cpu = i_prof+1
             
     print(80*"*")
-    total_stats.dump_stats("full_profile")
 
     shelf = shelve.open(database_file, flag='n')
     #shelf['total_stats'] = total_stats
     shelf['stats_pdf_tt'] = stats_pdf_tt
     shelf['stats_pdf_ct'] = stats_pdf_ct
     shelf['N_cpu'] = N_cpu
-    
+
+    # workaround until I do pickle rather than shelve
+    total_stats.dump_stats(stats_file)
+
     return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu
 
-def read_database(database_file):
+def read_database(database_file='profile_data.db', stats_file='full_profile.stats'):
     shelf = shelve.open(database_file, flag='r')
     #total_stats = shelf['total_stats']
     stats_pdf_tt = shelf['stats_pdf_tt']
     stats_pdf_ct = shelf['stats_pdf_ct']
     N_cpu = shelf['N_cpu']
-    
-    total_stats = pstats.Stats("full_profile")
+    # workaround until I do pickle rather than shelve
+    total_stats = pstats.Stats(stats_file)
     return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu
 
 
 
 
-    
+database_file = 'profile_data.db'
+stats_file = 'full_profile.stats'
 
 if len(sys.argv) > 1:
     if len(sys.argv) > 2:
@@ -112,18 +126,21 @@ if len(sys.argv) > 1:
         profile_root = sys.argv[1]
         
     profile_files = [fn for fn in os.listdir(profile_path) if fn.startswith(profile_root)];
-    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_prof_files(profile_files, database_file='profile_data.db')
+    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_prof_files(profile_files, database_file=database_file, stats_file=stats_file, include_dir_info=False)
 else:
-    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_database('profile_data.db')
+    print(80*'*')
+    print("restoring pre-generated databases")
+    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_database(database_file=database_file, stats_file=stats_file)
 
     
 total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
 
+print("creating PDFs over {:d} cpu".format(N_cpu))
 make_pdf(stats_pdf_tt, label="tt")
 
 graph_image = "full_code_profile.png"
 
-make_graph("full_profile", graph_image)
+make_graph(stats_file, graph_image)
 
 threshhold_image = "above_5_percent.png"
-make_graph("full_profile", threshhold_image, node_thresh=5)
+make_graph(stats_file, threshhold_image, node_thresh=5)
