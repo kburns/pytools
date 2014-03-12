@@ -1,0 +1,30 @@
+# Use glob syntax
+syntax: glob
+
+*.pyc
+*.DS_Store
+*.png
+*.db
+*.c
+*.so
+*.o
+
+*~
+
+# latex files
+*.log
+*.dvi
+*.aux
+*.blg
+
+# pyprof2html files
+*.js
+*.css
+*.html
+
+# tarballs
+*.tar
+
+# profiling results not explicitly included
+profiling
+profile*
