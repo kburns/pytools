@@ -23,37 +23,64 @@ def make_graph(profile, output_png_file, node_thresh=0.5):
 
     stdout, stderr = proc_dot.communicate()
 
-def make_pdf(stats_pdf_dict, label='', N_profiles=20):
+def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20):
 
     sorted_list = sorted(stats_pdf_dict.items(), key=lambda data_i: np.max(data_i[1]), reverse=True)
 
+    routine_text = "top {:d} routines for {:s}".format(N_profiles, label)
+    print()
+    print("{:80s}".format(routine_text),"     min    mean     max   (mean%total)")
+    print(120*"-")
     for i_fig, (func, data_list) in enumerate(sorted_list):
         data = np.array(data_list)
         N_data = data.shape[0]
 
-        print(func, "{:g} |{:g}| {:g}".format(np.min(data), np.mean(data), np.max(data)))
+        if N_data > 200:
+            N_bins = 100
+        else:
+            N_bins = N_data
 
         if func[0] == '~':
             title_string = func[2]
         else:
             title_string = "{:s}:{:d}:{:s}".format(*func)
-            
-        hist_values, bin_edges = np.histogram(data, bins=N_cpu)
+
+        def percent_time(sub_time):
+            sub_string = "{:.2g}%".format(100*sub_time/total_time)
+            return sub_string
+
+        timing_data_string = "{:6.2g} |{:6.2g} |{:6.2g}  ({:s})".format(np.min(data), np.mean(data), np.max(data), percent_time(np.mean(data)))
+
+        print("{:80s} = {:s}".format(title_string, timing_data_string))
+
+        timing_data_string = "min {:s} | {:s} | {:s} max".format(percent_time(np.min(data)), percent_time(np.mean(data)), percent_time(np.max(data)))
+
+        title_string += "\n{:s}".format(timing_data_string)
+        
+        hist_values, bin_edges = np.histogram(data, bins=N_bins)
         fig = plt.figure()
         ax1 = fig.add_subplot(1,2,1)
 
-        ax1.plot(bin_edges[1:], hist_values)
-
-        ax1.set_title(title_string)
+        ax1.plot(hist_values, bin_edges[1:])
+            
         ax2 = fig.add_subplot(1,2,2)
         ax2.bar(np.arange(N_data), data)
+
+        ax1.set_ylim(0, 1.1*np.max(data))
+        ax2.set_ylim(0, 1.1*np.max(data))
+
+
+        fig.suptitle(title_string)
         fig.savefig(label+'_{:06d}.png'.format(i_fig+1))
         plt.close(fig)
 
         if i_fig+1 == N_profiles:
             break
     
-def read_prof_files(profile_files, individual_core_profile=False, database_file='profile_data.db', stats_file='full_profile.stats', include_dir_info=False):
+def read_prof_files(profile_files, 
+                    individual_core_profile=False, include_dir_info=False, 
+                    database_file='profile_data.db', stats_file='full_profile.stats'):
+    
     first_profile = True
     
     stats_pdf_tt = {}
@@ -87,29 +114,33 @@ def read_prof_files(profile_files, individual_core_profile=False, database_file=
                 stats_pdf_ct[func] = [ct]
             
     N_cpu = i_prof+1
-            
-    print(80*"*")
 
+    print(80*"*")
+    total_time = total_stats.total_tt/N_cpu
+
+    print("total run time: {:g} sec per core".format(total_time))
+    print()
+    
     shelf = shelve.open(database_file, flag='n')
-    #shelf['total_stats'] = total_stats
     shelf['stats_pdf_tt'] = stats_pdf_tt
     shelf['stats_pdf_ct'] = stats_pdf_ct
+    shelf['total_time'] = total_time
     shelf['N_cpu'] = N_cpu
 
-    # workaround until I do pickle rather than shelve
     total_stats.dump_stats(stats_file)
 
-    return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu
+    return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu, total_time
 
 def read_database(database_file='profile_data.db', stats_file='full_profile.stats'):
     shelf = shelve.open(database_file, flag='r')
-    #total_stats = shelf['total_stats']
     stats_pdf_tt = shelf['stats_pdf_tt']
     stats_pdf_ct = shelf['stats_pdf_ct']
+    total_time = shelf['total_time']
     N_cpu = shelf['N_cpu']
-    # workaround until I do pickle rather than shelve
+
     total_stats = pstats.Stats(stats_file)
-    return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu
+
+    return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu, total_time
 
 
 
@@ -126,17 +157,17 @@ if len(sys.argv) > 1:
         profile_root = sys.argv[1]
         
     profile_files = [fn for fn in os.listdir(profile_path) if fn.startswith(profile_root)];
-    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_prof_files(profile_files, database_file=database_file, stats_file=stats_file, include_dir_info=False)
+    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu, total_time = read_prof_files(profile_files, database_file=database_file, stats_file=stats_file, include_dir_info=False)
 else:
     print(80*'*')
     print("restoring pre-generated databases")
-    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_database(database_file=database_file, stats_file=stats_file)
+    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu, total_time = read_database(database_file=database_file, stats_file=stats_file)
 
     
 total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
 
 print("creating PDFs over {:d} cpu".format(N_cpu))
-make_pdf(stats_pdf_tt, label="tt")
+make_pdf(stats_pdf_tt, total_time, label="tt")
 
 graph_image = "full_code_profile.png"
 
