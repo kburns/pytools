@@ -100,18 +100,21 @@ def read_database(database_file):
 
 
 
-profile_path = "."
-profile_root = "prof."
 
-profile_files = [fn for fn in os.listdir(profile_path) if fn.startswith(profile_root)];
     
 
-if len(profile_files) > 0:
+if len(sys.argv) > 1:
+    if len(sys.argv) > 2:
+        profile_path = sys.argv[1]
+        profile_root = sys.argv[2]
+    else:
+        profile_path = "."
+        profile_root = sys.argv[1]
+        
+    profile_files = [fn for fn in os.listdir(profile_path) if fn.startswith(profile_root)];
     total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_prof_files(profile_files, database_file='profile_data.db')
 else:
     total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_database('profile_data.db')
-
-    #
 
     
 total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
