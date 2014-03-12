@@ -81,7 +81,7 @@ def read_prof_files(profile_files, individual_core_profile=False, database_file=
     total_stats.dump_stats("full_profile")
 
     shelf = shelve.open(database_file, flag='n')
-    shelf['total_stats'] = total_stats
+    #shelf['total_stats'] = total_stats
     shelf['stats_pdf_tt'] = stats_pdf_tt
     shelf['stats_pdf_ct'] = stats_pdf_ct
     shelf['N_cpu'] = N_cpu
@@ -90,12 +90,13 @@ def read_prof_files(profile_files, individual_core_profile=False, database_file=
 
 def read_database(database_file):
     shelf = shelve.open(database_file, flag='r')
-    total_stats = shelf['total_stats']
+    #total_stats = shelf['total_stats']
     stats_pdf_tt = shelf['stats_pdf_tt']
     stats_pdf_ct = shelf['stats_pdf_ct']
     N_cpu = shelf['N_cpu']
     
-    return, total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu
+    total_stats = pstats.Stats("full_profile")
+    return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu
 
 
 
@@ -110,7 +111,7 @@ if len(profile_files) > 0:
 else:
     total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu = read_database('profile_data.db')
 
-    #total_stats = pstats.Stats("full_profile")
+    #
 
     
 total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
