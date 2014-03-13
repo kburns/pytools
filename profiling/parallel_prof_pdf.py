@@ -5,10 +5,31 @@ import pstats
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
+from matplotlib import rcParams
 import matplotlib.pyplot as plt
 import operator
 import shelve
+import brewer2mpl
+
 #import gprof2dot
+
+def set_plot_defaults():
+    # Set up some better defaults for matplotlib
+    # http://nbviewer.ipython.org/github/cs109/content/blob/master/lec_03_statistical_graphs.ipynb
+    #colorbrewer2 Dark2 qualitative color table
+    bar_colors = brewer2mpl.get_map('Dark2', 'Qualitative', 8).mpl_colors
+    bar_colors = brewer2mpl.get_map('Set3', 'Qualitative', 12).mpl_colors
+    bar_colors = brewer2mpl.get_map('Paired', 'Qualitative', 12).mpl_colors
+
+    rcParams['figure.figsize'] = (10, 6)
+    rcParams['figure.dpi'] = 150
+    rcParams['axes.color_cycle'] = bar_colors
+    rcParams['lines.linewidth'] = 2
+    rcParams['axes.facecolor'] = 'white'
+    rcParams['font.size'] = 14
+    rcParams['patch.edgecolor'] = 'white'
+    rcParams['patch.facecolor'] = bar_colors[0]
+    rcParams['font.family'] = 'StixGeneral'
 
 def make_graph(profile, output_png_file, node_thresh=0.5):
     proc_graph = subprocess.Popen(["./gprof2dot.py", "--skew", "0.5", "-n", "{:f}".format(node_thresh), 
@@ -23,10 +44,35 @@ def make_graph(profile, output_png_file, node_thresh=0.5):
 
     stdout, stderr = proc_dot.communicate()
 
-def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20):
 
-    sorted_list = sorted(stats_pdf_dict.items(), key=lambda data_i: np.max(data_i[1]), reverse=True)
+def sort_dict(dict_to_sort):
+    sorted_list = sorted(dict_to_sort.items(), key=lambda data_i: test_criteria(data_i[1]), reverse=True)
+    return sorted_list
 
+def test_criteria(data):
+    return np.max(data)
+
+def clean_display(ax):
+    # from http://nbviewer.ipython.org/gist/anonymous/5357268
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+
+    ax.yaxis.set_ticks_position('none')
+    ax.xaxis.set_ticks_position('none')
+
+
+def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
+
+    sorted_list = sort_dict(stats_pdf_dict)
+
+    composite_data_set = []
+    composite_label = []
+    composite_key_label = []
+
+    fig_stacked = plt.figure()
+    ax_stacked = fig_stacked.add_subplot(1,1,1)
+    
     routine_text = "top {:d} routines for {:s}".format(N_profiles, label)
     print()
     print("{:80s}".format(routine_text),"     min    mean     max   (mean%total)")
@@ -35,10 +81,12 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20):
         data = np.array(data_list)
         N_data = data.shape[0]
 
-        if N_data > 200:
-            N_bins = 100
-        else:
-            N_bins = N_data
+        if i_fig+1 == N_profiles or test_criteria(data)/total_time < thresh:
+            break
+
+        if i_fig == 0:
+            previous_data = np.zeros_like(data)
+                    
 
         if func[0] == '~':
             title_string = func[2]
@@ -49,33 +97,111 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20):
             sub_string = "{:.2g}%".format(100*sub_time/total_time)
             return sub_string
 
-        timing_data_string = "{:6.2g} |{:6.2g} |{:6.2g}  ({:s})".format(np.min(data), np.mean(data), np.max(data), percent_time(np.mean(data)))
+        timing_data_string = "{:8.2g} |{:8.2g} |{:8.2g}  ({:s})".format(np.min(data), np.mean(data), np.max(data), percent_time(np.mean(data)))
 
         print("{:80s} = {:s}".format(title_string, timing_data_string))
 
         timing_data_string = "min {:s} | {:s} | {:s} max".format(percent_time(np.min(data)), percent_time(np.mean(data)), percent_time(np.max(data)))
 
         title_string += "\n{:s}".format(timing_data_string)
+
+        key_label = "{:s} {:s}".format(percent_time(np.mean(data)),func[2])
+        short_label = "{:s}".format(percent_time(np.mean(data)))
         
-        hist_values, bin_edges = np.histogram(data, bins=N_bins)
+        composite_data_set.append([data])
+        composite_label.append(short_label)
+        composite_key_label.append(key_label)
+
+            
+        if N_data > 200:
+            N_bins = 100
+            logscale = True
+        else:
+            N_bins = N_data/4
+            logscale = False
+
+        q_color = next(ax_stacked._get_lines.color_cycle)
+        
         fig = plt.figure()
+
+        # pdf plot over many cores
         ax1 = fig.add_subplot(1,2,1)
 
-        ax1.plot(hist_values, bin_edges[1:])
-            
-        ax2 = fig.add_subplot(1,2,2)
-        ax2.bar(np.arange(N_data), data)
+        #hist_values, bin_edges = np.histogram(data, bins=N_bins)
+        #ax1.barh(hist_values, bin_edges[1:])
+        ax1.hist(data, bins=N_bins, orientation='horizontal', log=logscale, linewidth=0, color=q_color)
+        ax1.set_xlabel("N cores/bin")
+        ax1.set_ylabel("time (sec)")
+        ax1.grid(axis = 'x', color ='white', linestyle='-')
 
+        
+        # bar plot for each core
+        ax2 = fig.add_subplot(1,2,2)
+        ax2.bar(np.arange(N_data), data, linewidth=0, width=1, color=q_color)
+        ax2.set_xlim(-0.5, N_data+0.5)
+        ax2.set_xlabel("core #")
+        clean_display(ax2)
+    
+        ax2.grid(axis = 'y', color ='white', linestyle='-')
+
+        # end include
+        
         ax1.set_ylim(0, 1.1*np.max(data))
         ax2.set_ylim(0, 1.1*np.max(data))
 
 
         fig.suptitle(title_string)
-        fig.savefig(label+'_{:06d}.png'.format(i_fig+1))
+        fig.savefig(label+'_{:06d}.png'.format(i_fig+1), dpi=200)
         plt.close(fig)
 
-        if i_fig+1 == N_profiles:
-            break
+
+        ax_stacked.bar(np.arange(N_data), data, bottom=previous_data, label=short_label, linewidth=0,
+                       width=1, color=q_color)
+        previous_data += data
+
+    clean_display(ax_stacked)
+    ax_stacked.set_xlim(-0.5, N_data+0.5)
+    ax_stacked.set_xlabel('core #')
+    ax_stacked.set_ylabel('total time (sec)')
+    ax_stacked.legend(loc='upper left', bbox_to_anchor=(1.,1.), fontsize=10)
+    ax_stacked.set_title("per core timings for routines above {:g}% total time".format(thresh*100))
+    ax_stacked.grid(axis = 'y', color ='white', linestyle='-')
+    fig_stacked.savefig(label+"_stacked_bars.png", dpi=N_data*10/10)
+    plt.close(fig_stacked)
+
+
+    # pdf plot over many cores    
+    fig_composite = plt.figure()
+    ax_composite = fig_composite.add_subplot(1,1,1)
+
+    n, bins, patches = ax_composite.hist(composite_data_set, bins=N_bins, orientation='vertical', log=logscale, linewidth=0, stacked=True,
+                                         label=composite_label)
+
+    clean_display(ax_composite)
+    ax_composite.grid(axis = 'y', color ='white', linestyle='-')
+
+    ax_composite.set_xlabel("N cores/bin")
+    ax_composite.set_ylabel("total time (sec)")
+    ax_composite.set_ylim(0, 1.1*np.max(composite_data_set))
+    ax_composite.legend(loc='upper left', bbox_to_anchor=(1.,1.), fontsize=10)
+    
+    fig_composite.suptitle("composite PDF for routines above {:g}% total time".format(thresh*100))
+    fig_composite.savefig(label+'_composite.png', dpi=200)
+    plt.close(fig_composite)
+    
+    fig_key = plt.figure()
+    plt.figlegend(patches, composite_key_label, 'center')
+    #ax_key.legend(loc='center')
+    fig_key.savefig(label+"_composite_key.png")
+    plt.close(fig_key)
+    print(composite_key_label)
+
+
+
+    
+
+
+
     
 def read_prof_files(profile_files, 
                     individual_core_profile=False, include_dir_info=False, 
@@ -144,7 +270,6 @@ def read_database(database_file='profile_data.db', stats_file='full_profile.stat
 
 
 
-
 database_file = 'profile_data.db'
 stats_file = 'full_profile.stats'
 
@@ -166,8 +291,12 @@ else:
     
 total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
 
+
 print("creating PDFs over {:d} cpu".format(N_cpu))
+set_plot_defaults()
+
 make_pdf(stats_pdf_tt, total_time, label="tt")
+
 
 graph_image = "full_code_profile.png"
 
