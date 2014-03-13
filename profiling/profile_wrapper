@@ -1,0 +1,4 @@
+#!/bin/bash
+# workaround for profiling in an mvapich2/2.0b environment
+echo $PROFILE_SCRIPT.$MV2_COMM_WORLD_RANK
+python3 -m cProfile -o prof.$MV2_COMM_WORLD_RANK $PROFILE_SCRIPT
