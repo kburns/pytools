@@ -75,7 +75,7 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     
     routine_text = "top {:d} routines for {:s}".format(N_profiles, label)
     print()
-    print("{:80s}".format(routine_text),"     min    mean     max   (mean%total)")
+    print("{:80s}".format(routine_text),"     min      mean       max   (mean%total)")
     print(120*"-")
     for i_fig, (func, data_list) in enumerate(sorted_list):
         data = np.array(data_list)
@@ -166,7 +166,9 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     ax_stacked.legend(loc='upper left', bbox_to_anchor=(1.,1.), fontsize=10)
     ax_stacked.set_title("per core timings for routines above {:g}% total time".format(thresh*100))
     ax_stacked.grid(axis = 'y', color ='white', linestyle='-')
-    fig_stacked.savefig(label+"_stacked_bars.png", dpi=N_data*10/10)
+    points_per_data = 10
+    fig_x_size = 10
+    fig_stacked.savefig(label+"_per_core_timings.png", dpi=max(200, N_data*points_per_data/fig_x_size))
     plt.close(fig_stacked)
 
 
@@ -180,8 +182,8 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     clean_display(ax_composite)
     ax_composite.grid(axis = 'y', color ='white', linestyle='-')
 
-    ax_composite.set_xlabel("N cores/bin")
-    ax_composite.set_ylabel("total time (sec)")
+    ax_composite.set_ylabel("N cores/bin")
+    ax_composite.set_xlabel("total time (sec)")
     ax_composite.set_ylim(0, 1.1*np.max(composite_data_set))
     ax_composite.legend(loc='upper left', bbox_to_anchor=(1.,1.), fontsize=10)
     
@@ -194,9 +196,6 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     #ax_key.legend(loc='center')
     fig_key.savefig(label+"_composite_key.png")
     plt.close(fig_key)
-    print(composite_key_label)
-
-
 
     
 
@@ -304,3 +303,6 @@ make_graph(stats_file, graph_image)
 
 threshhold_image = "above_5_percent.png"
 make_graph(stats_file, threshhold_image, node_thresh=5)
+
+threshhold_image = "above_1_percent.png"
+make_graph(stats_file, threshhold_image, node_thresh=1)
