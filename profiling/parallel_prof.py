@@ -72,7 +72,41 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
 
     fig_stacked = plt.figure()
     ax_stacked = fig_stacked.add_subplot(1,1,1)
-    
+
+    i_mpi_list = []
+    i_fftw_list = []
+    i_fft_list = []
+    fft_type_list = ["ifft", "_dct", "rfft"]
+    for i_sort, (func, data_list) in enumerate(sorted_list):
+        if i_sort+1 == N_profiles:
+            break
+        
+        if "gssv" in func[2]:
+            print("found sparse solve call:",func[2], " at ", i_sort) 
+            i_gssv = i_sort
+            
+        if "mpi4py.MPI" in func[2]:
+            print("found MPI call:",func[2], " at ", i_sort) 
+            i_mpi_list.append(i_sort)
+
+        if "fftw.fftw_wrappers.Transpose" in func[2]:
+            print("found fftw transpose call:",func[2], " at ", i_sort) 
+            i_fftw_list.append(i_sort)
+
+        if any(fft_type in func[2] for fft_type in fft_type_list):
+            print("found fft call:",func[2], " at ", i_sort) 
+            i_fft_list.append(i_sort)
+        
+    # bubble sparse solve to the top
+    sorted_list.insert(0,sorted_list.pop(i_gssv))
+    last_insert = 0
+    resort_lists = [i_mpi_list, i_fftw_list, i_fft_list]
+    for i_resort_list in resort_lists:
+        for i_resort in i_resort_list:
+            sorted_list.insert(last_insert+1,sorted_list.pop(i_resort))
+            print("moved entry {:d}->{:d}".format(i_resort, last_insert+1))
+            last_insert += 1
+                    
     routine_text = "top {:d} routines for {:s}".format(N_profiles, label)
     print()
     print("{:80s}".format(routine_text),"     min      mean       max   (mean%total)")
@@ -81,12 +115,20 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
         data = np.array(data_list)
         N_data = data.shape[0]
 
-        if i_fig+1 == N_profiles or test_criteria(data)/total_time < thresh:
+        if i_fig+1 == N_profiles or (i_fig > last_insert and test_criteria(data)/total_time < thresh):
             break
 
         if i_fig == 0:
             previous_data = np.zeros_like(data)
-                    
+
+        N_missing = previous_data.size - data.size
+        
+        if N_missing != 0:
+            print("missing {:d} values; setting to zero".format(N_missing))
+            for i in range(N_missing):
+                data_list.insert(N_missing*(i+1)-1, 0)
+            data = np.array(data_list)
+            N_data = data.shape[0]
 
         if func[0] == '~':
             title_string = func[2]
@@ -153,8 +195,7 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
         fig.suptitle(title_string)
         fig.savefig(label+'_{:06d}.png'.format(i_fig+1), dpi=200)
         plt.close(fig)
-
-
+        
         ax_stacked.bar(np.arange(N_data), data, bottom=previous_data, label=short_label, linewidth=0,
                        width=1, color=q_color)
         previous_data += data
