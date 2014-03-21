@@ -349,7 +349,7 @@ if __name__ == "__main__":
     if args.command == 'process':
         pathname = os.path.join(args.directory, args.pattern)
         filenames = glob.glob(pathname)
-        combine_profiles(filenames, verbose=args.verbose)
+        combine_profiles('.', filenames, verbose=args.verbose)
     elif args.command == 'plot':
         pass
     else:
