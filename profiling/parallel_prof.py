@@ -77,6 +77,8 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     i_fftw_list = []
     i_fft_list = []
     fft_type_list = ["ifft", "_dct", "rfft"]
+    exclude_list = ["load_dynamic", "__init__", "<frozen", "importlib"]
+    
     for i_sort, (func, data_list) in enumerate(sorted_list):
         if i_sort+1 == N_profiles:
             break
@@ -89,24 +91,38 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
             print("found MPI call:",func[2], " at ", i_sort) 
             i_mpi_list.append(i_sort)
 
-        if "fftw.fftw_wrappers.Transpose" in func[2]:
-            print("found fftw transpose call:",func[2], " at ", i_sort) 
-            i_fftw_list.append(i_sort)
-
-        if any(fft_type in func[2] for fft_type in fft_type_list):
-            print("found fft call:",func[2], " at ", i_sort) 
-            i_fft_list.append(i_sort)
-        
     # bubble sparse solve to the top
     sorted_list.insert(0,sorted_list.pop(i_gssv))
     last_insert = 0
-    resort_lists = [i_mpi_list, i_fftw_list, i_fft_list]
-    for i_resort_list in resort_lists:
-        for i_resort in i_resort_list:
+    # insert MPI calls next
+    for i_resort in i_mpi_list:
             sorted_list.insert(last_insert+1,sorted_list.pop(i_resort))
             print("moved entry {:d}->{:d}".format(i_resort, last_insert+1))
             last_insert += 1
-                    
+            
+    for i_sort, (func, data_list) in enumerate(sorted_list):        
+        if "fftw.fftw_wrappers.Transpose" in func[2]:
+            print("found fftw transpose call:",func[2], " at ", i_sort) 
+            sorted_list.insert(last_insert+1,sorted_list.pop(i_sort))
+            print("moved entry {:d}->{:d}".format(i_sort, last_insert+1))
+            last_insert += 1
+            
+    for i_sort, (func, data_list) in enumerate(sorted_list):
+        if any(fft_type in func[2] for fft_type in fft_type_list):
+            print("found fft call:",func[2], " at ", i_sort)
+            if i_sort < N_profiles:
+                sorted_list.insert(last_insert+1,sorted_list.pop(i_sort))
+                print("moved entry {:d}->{:d}".format(i_sort, last_insert+1))
+                last_insert += 1
+            
+    for i_sort, (func, data_list) in enumerate(sorted_list):
+        if i_sort+1 == N_profiles:
+            break
+        if any((exclude_type in func[0] or exclude_type in func[2]) for exclude_type in exclude_list):
+            print("found excluded call:",func[2], " at ", i_sort, " ... popping.") 
+            sorted_list.pop(i_sort)
+
+
     routine_text = "top {:d} routines for {:s}".format(N_profiles, label)
     print()
     print("{:80s}".format(routine_text),"     min      mean       max   (mean%total)")
