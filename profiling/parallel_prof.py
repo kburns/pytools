@@ -262,6 +262,10 @@ summed_filename = 'summed_stats.prof'
 def combine_profiles(directory, filenames, verbose=False):
     """Combine statistics from a collection of profiles."""
 
+    import os
+    import pstats
+    import shelve
+
     summed_stats = pstats.stats()
     joined_primcalls = defaultdict(list)
     joined_totcalls = defaultdict(list)
