@@ -1,15 +1,15 @@
-import sys
-import os
-import subprocess
-import pstats
-import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import rcParams
-import matplotlib.pyplot as plt
-import operator
-import shelve
-import brewer2mpl
+# import sys
+# import os
+# import subprocess
+# import pstats
+# import numpy as np
+# import matplotlib
+# matplotlib.use('Agg')
+# from matplotlib import rcParams
+# import matplotlib.pyplot as plt
+# import operator
+# import shelve
+# import brewer2mpl
 
 #import gprof2dot
 
@@ -32,14 +32,14 @@ def set_plot_defaults():
     rcParams['font.family'] = 'StixGeneral'
 
 def make_graph(profile, output_png_file, node_thresh=0.5):
-    proc_graph = subprocess.Popen(["./gprof2dot.py", "--skew", "0.5", "-n", "{:f}".format(node_thresh), 
-                                   "-f", "pstats", profile], 
+    proc_graph = subprocess.Popen(["./gprof2dot.py", "--skew", "0.5", "-n", "{:f}".format(node_thresh),
+                                   "-f", "pstats", profile],
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
 
     # the directed graph is produced by proc_graph.stdout
-    proc_dot = subprocess.Popen(["dot", "-Tpng", "-o", output_png_file], 
-                                stdin = proc_graph.stdout, 
+    proc_dot = subprocess.Popen(["dot", "-Tpng", "-o", output_png_file],
+                                stdin = proc_graph.stdout,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
     stdout, stderr = proc_dot.communicate()
@@ -78,17 +78,17 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     i_fft_list = []
     fft_type_list = ["ifft", "_dct", "rfft"]
     exclude_list = ["load_dynamic", "__init__", "<frozen", "importlib"]
-    
+
     for i_sort, (func, data_list) in enumerate(sorted_list):
         if i_sort+1 == N_profiles:
             break
-        
+
         if "gssv" in func[2]:
-            print("found sparse solve call:",func[2], " at ", i_sort) 
+            print("found sparse solve call:",func[2], " at ", i_sort)
             i_gssv = i_sort
-            
+
         if "mpi4py.MPI" in func[2]:
-            print("found MPI call:",func[2], " at ", i_sort) 
+            print("found MPI call:",func[2], " at ", i_sort)
             i_mpi_list.append(i_sort)
 
     # bubble sparse solve to the top
@@ -99,14 +99,14 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
             sorted_list.insert(last_insert+1,sorted_list.pop(i_resort))
             print("moved entry {:d}->{:d}".format(i_resort, last_insert+1))
             last_insert += 1
-            
-    for i_sort, (func, data_list) in enumerate(sorted_list):        
+
+    for i_sort, (func, data_list) in enumerate(sorted_list):
         if "fftw.fftw_wrappers.Transpose" in func[2]:
-            print("found fftw transpose call:",func[2], " at ", i_sort) 
+            print("found fftw transpose call:",func[2], " at ", i_sort)
             sorted_list.insert(last_insert+1,sorted_list.pop(i_sort))
             print("moved entry {:d}->{:d}".format(i_sort, last_insert+1))
             last_insert += 1
-            
+
     for i_sort, (func, data_list) in enumerate(sorted_list):
         if any(fft_type in func[2] for fft_type in fft_type_list):
             print("found fft call:",func[2], " at ", i_sort)
@@ -114,12 +114,12 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
                 sorted_list.insert(last_insert+1,sorted_list.pop(i_sort))
                 print("moved entry {:d}->{:d}".format(i_sort, last_insert+1))
                 last_insert += 1
-            
+
     for i_sort, (func, data_list) in enumerate(sorted_list):
         if i_sort+1 == N_profiles:
             break
         if any((exclude_type in func[0] or exclude_type in func[2]) for exclude_type in exclude_list):
-            print("found excluded call:",func[2], " at ", i_sort, " ... popping.") 
+            print("found excluded call:",func[2], " at ", i_sort, " ... popping.")
             sorted_list.pop(i_sort)
 
 
@@ -138,7 +138,7 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
             previous_data = np.zeros_like(data)
 
         N_missing = previous_data.size - data.size
-        
+
         if N_missing != 0:
             print("missing {:d} values; setting to zero".format(N_missing))
             for i in range(N_missing):
@@ -165,12 +165,12 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
 
         key_label = "{:s} {:s}".format(percent_time(np.mean(data)),func[2])
         short_label = "{:s}".format(percent_time(np.mean(data)))
-        
+
         composite_data_set.append([data])
         composite_label.append(short_label)
         composite_key_label.append(key_label)
 
-            
+
         if N_data > 200:
             N_bins = 100
             logscale = True
@@ -179,7 +179,7 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
             logscale = False
 
         q_color = next(ax_stacked._get_lines.color_cycle)
-        
+
         fig = plt.figure()
 
         # pdf plot over many cores
@@ -192,18 +192,18 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
         ax1.set_ylabel("time (sec)")
         ax1.grid(axis = 'x', color ='white', linestyle='-')
 
-        
+
         # bar plot for each core
         ax2 = fig.add_subplot(1,2,2)
         ax2.bar(np.arange(N_data), data, linewidth=0, width=1, color=q_color)
         ax2.set_xlim(-0.5, N_data+0.5)
         ax2.set_xlabel("core #")
         clean_display(ax2)
-    
+
         ax2.grid(axis = 'y', color ='white', linestyle='-')
 
         # end include
-        
+
         ax1.set_ylim(0, 1.1*np.max(data))
         ax2.set_ylim(0, 1.1*np.max(data))
 
@@ -211,7 +211,7 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
         fig.suptitle(title_string)
         fig.savefig(label+'_{:06d}.png'.format(i_fig+1), dpi=200)
         plt.close(fig)
-        
+
         ax_stacked.bar(np.arange(N_data), data, bottom=previous_data, label=short_label, linewidth=0,
                        width=1, color=q_color)
         previous_data += data
@@ -229,7 +229,7 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     plt.close(fig_stacked)
 
 
-    # pdf plot over many cores    
+    # pdf plot over many cores
     fig_composite = plt.figure()
     ax_composite = fig_composite.add_subplot(1,1,1)
 
@@ -243,123 +243,115 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     ax_composite.set_xlabel("total time (sec)")
     ax_composite.set_ylim(0, 1.1*np.max(composite_data_set))
     ax_composite.legend(loc='upper left', bbox_to_anchor=(1.,1.), fontsize=10)
-    
+
     fig_composite.suptitle("composite PDF for routines above {:g}% total time".format(thresh*100))
     fig_composite.savefig(label+'_composite.png', dpi=200)
     plt.close(fig_composite)
-    
+
     fig_key = plt.figure()
     plt.figlegend(patches, composite_key_label, 'center')
     #ax_key.legend(loc='center')
     fig_key.savefig(label+"_composite_key.png")
     plt.close(fig_key)
 
-    
 
 
+joined_filename = 'joined_stats.db'
+summed_filename = 'summed_stats.prof'
 
-    
-def read_prof_files(profile_files, 
-                    individual_core_profile=False, include_dir_info=False, 
-                    database_file='profile_data.db', stats_file='full_profile.stats'):
-    
-    first_profile = True
-    
-    stats_pdf_tt = {}
-    stats_pdf_ct = {}
-    for i_prof, profile in enumerate(profile_files):
-        print("Opening profile: ", profile)
-        stats = pstats.Stats(profile)
+def combine_profiles(directory, filenames, verbose=False):
+    """Combine statistics from a collection of profiles."""
 
-        if not include_dir_info:
-            stats = stats.strip_dirs()
+    summed_stats = pstats.stats()
+    joined_primcalls = defaultdict(list)
+    joined_totcalls = defaultdict(list)
+    joined_tottime = defaultdict(list)
+    joined_cumtime = defaultdict(list)
 
-        if individual_core_profile:
-            graph_image = "code_profile.{:d}.png".format(i_prof)
-            make_graph(profile, graph_image)
-    
-            stats.sort_stats('tottime').print_stats(10)
-            
-        if first_profile:
-            first_profile = False
-            total_stats = stats
-        else:
-            total_stats.add(stats)
+    if verbose:
+        print("Combining profiles:")
 
-        for data in stats.stats.items():
-            func, (cc, nc, tt, ct, callers) = data
-            if func in stats_pdf_tt:
-                stats_pdf_tt[func].append(tt)
-                stats_pdf_ct[func].append(ct)
-            else:
-                stats_pdf_tt[func] = [tt]
-                stats_pdf_ct[func] = [ct]
-            
-    N_cpu = i_prof+1
+    for i, filename in enumerate(filenames):
+        if verbose:
+            print("  {:s}".format(filename))
 
-    print(80*"*")
-    total_time = total_stats.total_tt/N_cpu
+        stats = pstats.Stats(filename)
+        stats.strip_dirs()
+        summed_stats.add(stats)
 
-    print("total run time: {:g} sec per core".format(total_time))
-    print()
-    
-    shelf = shelve.open(database_file, flag='n')
-    shelf['stats_pdf_tt'] = stats_pdf_tt
-    shelf['stats_pdf_ct'] = stats_pdf_ct
-    shelf['total_time'] = total_time
-    shelf['N_cpu'] = N_cpu
+        for funcstats in stats.stats.items():
+            func, (primcalls, totcalls, tottime, cumtime, callers) = funcstats
+            joined_primcalls[func].append(primcalls)
+            joined_totcalls[func].append(totcalls)
+            joined_tottime[func].append(tottime)
+            joined_cumtime[func].append(cumtime)
 
-    total_stats.dump_stats(stats_file)
+    n_processes = len(filenames)
+    average_runtime = summed_stats.total_tt / n_processes
+    if verbose:
+        print("  Average runtime: {:g} s".format(average_runtime))
 
-    return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu, total_time
+    summed_stats.dump_stats(os.path.join(directory, summed_filename))
 
-def read_database(database_file='profile_data.db', stats_file='full_profile.stats'):
-    shelf = shelve.open(database_file, flag='r')
-    stats_pdf_tt = shelf['stats_pdf_tt']
-    stats_pdf_ct = shelf['stats_pdf_ct']
-    total_time = shelf['total_time']
-    N_cpu = shelf['N_cpu']
-
-    total_stats = pstats.Stats(stats_file)
-
-    return total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu, total_time
+    with shelve.open(os.path.join(directory, joined_filename), flag='n') as shelf:
+        shelf['primcalls'] = joined_primcalls
+        shelf['totcalls'] = joined_totcalls
+        shelf['tottime'] = joined_tottime
+        shelf['cumtime'] = joined_cumtime
+        shelf['average_runtime'] = average_runtime
+        shelf['n_processes'] = n_processes
 
 
+def read_database(directory):
 
-database_file = 'profile_data.db'
-stats_file = 'full_profile.stats'
+    summed_stats = pstats.Stats(os.path.join(directory, summed_filename))
 
-if len(sys.argv) > 1:
-    if len(sys.argv) > 2:
-        profile_path = sys.argv[1]
-        profile_root = sys.argv[2]
+    with shelve.open(os.path.join(directory, joined_filename), flag='r') as shelf:
+        primcalls = shelf['primcalls']
+        totcalls = shelf['totcalls']
+        tottime = shelf['tottime']
+        cumtime = shelf['cumtime']
+        average_runtime = shelf['average_runtime']
+        n_processes = shelf['n_processes']
+
+    return summed_stats, primcalls, totcalls, tottime, cumtime, average_runtime, n_processes
+
+
+# print("creating PDFs over {:d} cpu".format(N_cpu))
+# set_plot_defaults()
+
+# make_pdf(stats_pdf_tt, total_time, label="tt")
+
+# graph_image = "full_code_profile.png"
+
+# make_graph(stats_file, graph_image)
+
+# threshhold_image = "above_5_percent.png"
+# make_graph(stats_file, threshhold_image, node_thresh=5)
+
+# threshhold_image = "above_1_percent.png"
+# make_graph(stats_file, threshhold_image, node_thresh=1)
+
+
+if __name__ == "__main__":
+
+    import argparse
+    import os
+    import glob
+
+    parser = argparse.ArgumentParser(description="Analyze parallel python profiles.")
+    parser.add_argument('command', choices=['process', 'plot'], help="Combine profiles into database, or plot database")
+    parser.add_argument('directory', nargs='?', default='.', help="Directory containing profiles / database")
+    parser.add_argument('pattern', nargs='?', default='proc_*.prof', help="Profile naming pattern (e.g. proc_*.prof)")
+    parser.add_argument('--verbose', type=bool, default=False)
+    args = parser.parse_args()
+
+    if args.command == 'process':
+        pathname = os.path.join(args.directory, args.pattern)
+        filenames = glob.glob(pathname)
+        combine_profiles(filenames, verbose=args.verbose)
+    elif args.command == 'plot':
+        pass
     else:
-        profile_path = "."
-        profile_root = sys.argv[1]
-        
-    profile_files = [fn for fn in os.listdir(profile_path) if fn.startswith(profile_root)];
-    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu, total_time = read_prof_files(profile_files, database_file=database_file, stats_file=stats_file, include_dir_info=False)
-else:
-    print(80*'*')
-    print("restoring pre-generated databases")
-    total_stats, stats_pdf_tt, stats_pdf_ct, N_cpu, total_time = read_database(database_file=database_file, stats_file=stats_file)
+        raise ValueError("Error parsing commands.")
 
-    
-total_stats.strip_dirs().sort_stats('tottime').print_stats(10)
-
-
-print("creating PDFs over {:d} cpu".format(N_cpu))
-set_plot_defaults()
-
-make_pdf(stats_pdf_tt, total_time, label="tt")
-
-
-graph_image = "full_code_profile.png"
-
-make_graph(stats_file, graph_image)
-
-threshhold_image = "above_5_percent.png"
-make_graph(stats_file, threshhold_image, node_thresh=5)
-
-threshhold_image = "above_1_percent.png"
-make_graph(stats_file, threshhold_image, node_thresh=1)
