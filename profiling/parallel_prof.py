@@ -266,6 +266,7 @@ def combine_profiles(directory, filenames, verbose=False):
     import pstats
     import shelve
     from collections import defaultdict
+    from contextlib import closing
 
     summed_stats = pstats.Stats()
     joined_primcalls = defaultdict(list)
@@ -298,7 +299,7 @@ def combine_profiles(directory, filenames, verbose=False):
 
     summed_stats.dump_stats(os.path.join(directory, summed_filename))
 
-    with shelve.open(os.path.join(directory, joined_filename), flag='n') as shelf:
+    with closing(shelve.open(os.path.join(directory, joined_filename), flag='n')) as shelf:
         shelf['primcalls'] = joined_primcalls
         shelf['totcalls'] = joined_totcalls
         shelf['tottime'] = joined_tottime
