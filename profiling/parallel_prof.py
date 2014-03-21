@@ -265,6 +265,7 @@ def combine_profiles(directory, filenames, verbose=False):
     import os
     import pstats
     import shelve
+    from collections import defaultdict
 
     summed_stats = pstats.Stats()
     joined_primcalls = defaultdict(list)
