@@ -66,7 +66,7 @@ def clean_display(ax):
     ax.xaxis.set_ticks_position('none')
 
 
-def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
+def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01, verbose=False):
 
     import matplotlib
     matplotlib.use('Agg')
@@ -93,11 +93,13 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
             break
 
         if "gssv" in func[2]:
-            print("found sparse solve call:",func[2], " at ", i_sort)
+            if verbose:
+                print("found sparse solve call:",func[2], " at ", i_sort)
             i_gssv = i_sort
 
         if "mpi4py.MPI" in func[2]:
-            print("found MPI call:",func[2], " at ", i_sort)
+            if verbose:
+                print("found MPI call:",func[2], " at ", i_sort)
             i_mpi_list.append(i_sort)
 
     # bubble sparse solve to the top
@@ -106,36 +108,43 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     # insert MPI calls next
     for i_resort in i_mpi_list:
             sorted_list.insert(last_insert+1,sorted_list.pop(i_resort))
-            print("moved entry {:d}->{:d}".format(i_resort, last_insert+1))
+            if verbose:
+                print("moved entry {:d}->{:d}".format(i_resort, last_insert+1))
             last_insert += 1
 
     for i_sort, (func, data_list) in enumerate(sorted_list):
         if "fftw.fftw_wrappers.Transpose" in func[2]:
-            print("found fftw transpose call:",func[2], " at ", i_sort)
+            if verbose:
+                print("found fftw transpose call:",func[2], " at ", i_sort)
             sorted_list.insert(last_insert+1,sorted_list.pop(i_sort))
-            print("moved entry {:d}->{:d}".format(i_sort, last_insert+1))
+            if verbose:
+                print("moved entry {:d}->{:d}".format(i_sort, last_insert+1))
             last_insert += 1
 
     for i_sort, (func, data_list) in enumerate(sorted_list):
         if any(fft_type in func[2] for fft_type in fft_type_list):
-            print("found fft call:",func[2], " at ", i_sort)
+            if verbose:
+                print("found fft call:",func[2], " at ", i_sort)
             if i_sort < N_profiles:
                 sorted_list.insert(last_insert+1,sorted_list.pop(i_sort))
-                print("moved entry {:d}->{:d}".format(i_sort, last_insert+1))
+                if verbose:
+                    print("moved entry {:d}->{:d}".format(i_sort, last_insert+1))
                 last_insert += 1
 
     for i_sort, (func, data_list) in enumerate(sorted_list):
         if i_sort+1 == N_profiles:
             break
         if any((exclude_type in func[0] or exclude_type in func[2]) for exclude_type in exclude_list):
-            print("found excluded call:",func[2], " at ", i_sort, " ... popping.")
+            if verbose:
+                print("found excluded call:",func[2], " at ", i_sort, " ... popping.")
             sorted_list.pop(i_sort)
 
 
     routine_text = "top {:d} routines for {:s}".format(N_profiles, label)
-    print()
-    print("{:80s}".format(routine_text),"     min      mean       max   (mean%total)")
-    print(120*"-")
+    if verbose:
+        print()
+        print("{:80s}".format(routine_text),"     min      mean       max   (mean%total)")
+        print(120*"-")
     for i_fig, (func, data_list) in enumerate(sorted_list):
         data = np.array(data_list)
         N_data = data.shape[0]
@@ -149,7 +158,8 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
         N_missing = previous_data.size - data.size
 
         if N_missing != 0:
-            print("missing {:d} values; setting to zero".format(N_missing))
+            if verbose:
+                print("missing {:d} values; setting to zero".format(N_missing))
             for i in range(N_missing):
                 data_list.insert(N_missing*(i+1)-1, 0)
             data = np.array(data_list)
@@ -166,7 +176,8 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
 
         timing_data_string = "{:8.2g} |{:8.2g} |{:8.2g}  ({:s})".format(np.min(data), np.mean(data), np.max(data), percent_time(np.mean(data)))
 
-        print("{:80s} = {:s}".format(title_string, timing_data_string))
+        if verbose:
+            print("{:80s} = {:s}".format(title_string, timing_data_string))
 
         timing_data_string = "min {:s} | {:s} | {:s} max".format(percent_time(np.min(data)), percent_time(np.mean(data)), percent_time(np.max(data)))
 
@@ -349,7 +360,7 @@ if __name__ == "__main__":
         # PDFs
         set_plot_defaults()
         summed_stats, primcalls, totcalls, tottime, cumtime, average_runtime, n_processes = read_database(directory)
-        make_pdf(tottime, average_runtime, label="tt")
+        make_pdf(tottime, average_runtime, label="tt", verbose=args.verbose)
         # Graphs
         summed_path = os.path.join(directory, summed_filename)
         make_graph(summed_path, 'full_code_profile.png')
