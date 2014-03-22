@@ -339,6 +339,16 @@ def read_database(directory):
     return summed_stats, primcalls, totcalls, tottime, cumtime, average_runtime, n_processes
 
 
+def natural_sort(l):
+
+    import re
+
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+
+    return sorted(l, key=alphanum_key)
+
+
 if __name__ == "__main__":
 
     import argparse
@@ -348,12 +358,12 @@ if __name__ == "__main__":
     parser.add_argument('command', choices=['process', 'plot'], help="Combine profiles into database, or plot database")
     parser.add_argument('directory', nargs='?', default='.', help="Directory containing profiles / database")
     parser.add_argument('--pattern', default='proc_*.prof', help="Profile naming pattern (e.g. proc_*.prof)")
-    parser.add_argument('--verbose', type=bool, default=False)
+    parser.add_argument('--verbose', action="store_true")
     args = parser.parse_args()
 
     if args.command == 'process':
         pathname = os.path.join(args.directory, args.pattern)
-        filenames = sorted(glob.glob(pathname))
+        filenames = natural_sort(glob.glob(pathname))
         if filenames:
             combine_profiles('.', filenames, verbose=args.verbose)
         else:
