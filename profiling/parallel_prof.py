@@ -1,19 +1,20 @@
-# import sys
-# import os
-# import subprocess
-# import pstats
-# import numpy as np
-# import matplotlib
-# matplotlib.use('Agg')
-# from matplotlib import rcParams
-# import matplotlib.pyplot as plt
-# import operator
-# import shelve
-# import brewer2mpl
 
-#import gprof2dot
 
-def set_plot_defaults():
+import os
+import shelve
+import pstats
+import numpy as np
+
+
+# Module constants
+joined_filename = 'joined_stats.db'
+summed_filename = 'summed_stats.prof'
+
+
+def set_plot_defaults(rcParams):
+
+    import brewer2mpl
+
     # Set up some better defaults for matplotlib
     # http://nbviewer.ipython.org/github/cs109/content/blob/master/lec_03_statistical_graphs.ipynb
     #colorbrewer2 Dark2 qualitative color table
@@ -32,6 +33,9 @@ def set_plot_defaults():
     rcParams['font.family'] = 'StixGeneral'
 
 def make_graph(profile, output_png_file, node_thresh=0.5):
+
+    import subprocess
+
     proc_graph = subprocess.Popen(["./gprof2dot.py", "--skew", "0.5", "-n", "{:f}".format(node_thresh),
                                    "-f", "pstats", profile],
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -63,6 +67,11 @@ def clean_display(ax):
 
 
 def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
+
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import rcParams
+    import matplotlib.pyplot as plt
 
     sorted_list = sort_dict(stats_pdf_dict)
 
@@ -255,16 +264,9 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01):
     plt.close(fig_key)
 
 
-
-joined_filename = 'joined_stats.db'
-summed_filename = 'summed_stats.prof'
-
 def combine_profiles(directory, filenames, verbose=False):
     """Combine statistics from a collection of profiles."""
 
-    import os
-    import pstats
-    import shelve
     from collections import defaultdict
     from contextlib import closing
 
@@ -285,8 +287,7 @@ def combine_profiles(directory, filenames, verbose=False):
         stats.strip_dirs()
         summed_stats.add(stats)
 
-        for funcstats in stats.stats.items():
-            func, (primcalls, totcalls, tottime, cumtime, callers) = funcstats
+        for func, (primcalls, totcalls, tottime, cumtime, callers) in stats.stats.items():
             joined_primcalls[func].append(primcalls)
             joined_totcalls[func].append(totcalls)
             joined_tottime[func].append(tottime)
@@ -310,9 +311,11 @@ def combine_profiles(directory, filenames, verbose=False):
 
 def read_database(directory):
 
+    from contextlib import closing
+
     summed_stats = pstats.Stats(os.path.join(directory, summed_filename))
 
-    with shelve.open(os.path.join(directory, joined_filename), flag='r') as shelf:
+    with closing(shelve.open(os.path.join(directory, joined_filename), flag='r')) as shelf:
         primcalls = shelf['primcalls']
         totcalls = shelf['totcalls']
         tottime = shelf['tottime']
@@ -323,41 +326,35 @@ def read_database(directory):
     return summed_stats, primcalls, totcalls, tottime, cumtime, average_runtime, n_processes
 
 
-# print("creating PDFs over {:d} cpu".format(N_cpu))
-# set_plot_defaults()
-
-# make_pdf(stats_pdf_tt, total_time, label="tt")
-
-# graph_image = "full_code_profile.png"
-
-# make_graph(stats_file, graph_image)
-
-# threshhold_image = "above_5_percent.png"
-# make_graph(stats_file, threshhold_image, node_thresh=5)
-
-# threshhold_image = "above_1_percent.png"
-# make_graph(stats_file, threshhold_image, node_thresh=1)
-
-
 if __name__ == "__main__":
 
     import argparse
-    import os
     import glob
 
     parser = argparse.ArgumentParser(description="Analyze parallel python profiles.")
     parser.add_argument('command', choices=['process', 'plot'], help="Combine profiles into database, or plot database")
     parser.add_argument('directory', nargs='?', default='.', help="Directory containing profiles / database")
-    parser.add_argument('pattern', nargs='?', default='proc_*.prof', help="Profile naming pattern (e.g. proc_*.prof)")
+    parser.add_argument('--pattern', default='proc_*.prof', help="Profile naming pattern (e.g. proc_*.prof)")
     parser.add_argument('--verbose', type=bool, default=False)
     args = parser.parse_args()
 
     if args.command == 'process':
         pathname = os.path.join(args.directory, args.pattern)
-        filenames = glob.glob(pathname)
-        combine_profiles('.', filenames, verbose=args.verbose)
+        filenames = sorted(glob.glob(pathname))
+        if filenames:
+            combine_profiles('.', filenames, verbose=args.verbose)
+        else:
+            raise ValueError("No profiles found.")
     elif args.command == 'plot':
-        pass
+        # PDFs
+        set_plot_defaults()
+        summed_stats, primcalls, totcalls, tottime, cumtime, average_runtime, n_processes = read_database(directory)
+        make_pdf(tottime, average_runtime, label="tt")
+        # Graphs
+        summed_path = os.path.join(directory, summed_filename)
+        make_graph(summed_path, 'full_code_profile.png')
+        make_graph(summed_path, 'above_1_percent.png', node_thresh=1)
+        make_graph(summed_path, 'above_5_percent.png', node_thresh=5)
     else:
         raise ValueError("Error parsing commands.")
 
