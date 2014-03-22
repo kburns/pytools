@@ -36,7 +36,7 @@ def make_graph(profile, output_png_file, node_thresh=0.5):
 
     import subprocess
 
-    proc_graph = subprocess.Popen(["./gprof2dot.py", "--skew", "0.5", "-n", "{:f}".format(node_thresh),
+    proc_graph = subprocess.Popen(["gprof2dot", "--skew", "0.5", "-n", "{:f}".format(node_thresh),
                                    "-f", "pstats", profile],
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
@@ -363,7 +363,7 @@ if __name__ == "__main__":
         summed_stats, primcalls, totcalls, tottime, cumtime, average_runtime, n_processes = read_database(args.directory)
         make_pdf(tottime, average_runtime, label="tt", verbose=args.verbose)
         # Graphs
-        summed_path = os.path.join(directory, summed_filename)
+        summed_path = os.path.join(args.directory, summed_filename)
         make_graph(summed_path, 'full_code_profile.png')
         make_graph(summed_path, 'above_1_percent.png', node_thresh=1)
         make_graph(summed_path, 'above_5_percent.png', node_thresh=5)
