@@ -73,6 +73,8 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01, v
     from matplotlib import rcParams
     import matplotlib.pyplot as plt
 
+    set_plot_defaults(rcParams)
+
     sorted_list = sort_dict(stats_pdf_dict)
 
     composite_data_set = []
@@ -312,10 +314,10 @@ def combine_profiles(directory, filenames, verbose=False):
     summed_stats.dump_stats(os.path.join(directory, summed_filename))
 
     with closing(shelve.open(os.path.join(directory, joined_filename), flag='n')) as shelf:
-        shelf['primcalls'] = joined_primcalls
-        shelf['totcalls'] = joined_totcalls
-        shelf['tottime'] = joined_tottime
-        shelf['cumtime'] = joined_cumtime
+        shelf['primcalls'] = dict(joined_primcalls)
+        shelf['totcalls'] = dict(joined_totcalls)
+        shelf['tottime'] = dict(joined_tottime)
+        shelf['cumtime'] = dict(joined_cumtime)
         shelf['average_runtime'] = average_runtime
         shelf['n_processes'] = n_processes
 
@@ -358,8 +360,7 @@ if __name__ == "__main__":
             raise ValueError("No profiles found.")
     elif args.command == 'plot':
         # PDFs
-        set_plot_defaults()
-        summed_stats, primcalls, totcalls, tottime, cumtime, average_runtime, n_processes = read_database(directory)
+        summed_stats, primcalls, totcalls, tottime, cumtime, average_runtime, n_processes = read_database(args.directory)
         make_pdf(tottime, average_runtime, label="tt", verbose=args.verbose)
         # Graphs
         summed_path = os.path.join(directory, summed_filename)
