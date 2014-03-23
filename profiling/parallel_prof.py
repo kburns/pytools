@@ -53,6 +53,9 @@ def sort_dict(dict_to_sort):
     sorted_list = sorted(dict_to_sort.items(), key=lambda data_i: test_criteria(data_i[1]), reverse=True)
     return sorted_list
 
+def sort_by_total(joined_stat):
+    return sorted(joined_stat.items(), key=lambda kv: np.sum(kv[1]), reverse=True)
+
 def test_criteria(data):
     return np.max(data)
 
@@ -66,7 +69,7 @@ def clean_display(ax):
     ax.xaxis.set_ticks_position('none')
 
 
-def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01, verbose=False):
+def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=50, thresh=0.005, verbose=False):
 
     import matplotlib
     matplotlib.use('Agg')
@@ -75,7 +78,7 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01, v
 
     set_plot_defaults(rcParams)
 
-    sorted_list = sort_dict(stats_pdf_dict)
+    sorted_list = sort_by_total(stats_pdf_dict)
 
     composite_data_set = []
     composite_label = []
@@ -145,12 +148,18 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01, v
     routine_text = "top {:d} routines for {:s}".format(N_profiles, label)
     if verbose:
         print()
-        print("{:80s}".format(routine_text),"     min      mean       max   (mean%total)")
+        print("{:80s}".format(routine_text),"     min      mean       max   (mean%total)   (m%t cum.)")
         print(120*"-")
+    running=0
+
     for i_fig, (func, data_list) in enumerate(sorted_list):
         data = np.array(data_list)
         N_data = data.shape[0]
 
+        # if i_fig == N_profiles:
+        #     break
+        # if test_criteria(data)/total_time < thresh:
+        #     break
         if i_fig+1 == N_profiles or (i_fig > last_insert and test_criteria(data)/total_time < thresh):
             break
 
@@ -173,10 +182,11 @@ def make_pdf(stats_pdf_dict, total_time, label='', N_profiles=20, thresh=0.01, v
             title_string = "{:s}:{:d}:{:s}".format(*func)
 
         def percent_time(sub_time):
-            sub_string = "{:.2g}%".format(100*sub_time/total_time)
+            sub_string = "{:4.2f}%".format(100*sub_time/total_time)
             return sub_string
 
-        timing_data_string = "{:8.2g} |{:8.2g} |{:8.2g}  ({:s})".format(np.min(data), np.mean(data), np.max(data), percent_time(np.mean(data)))
+        running += np.mean(data)
+        timing_data_string = "{:8.2g} |{:8.2g} |{:8.2g}  ({:s}) ({:s})".format(np.min(data), np.mean(data), np.max(data), percent_time(np.mean(data)), percent_time(running))
 
         if verbose:
             print("{:80s} = {:s}".format(title_string, timing_data_string))
@@ -284,10 +294,11 @@ def combine_profiles(directory, filenames, verbose=False):
     from contextlib import closing
 
     summed_stats = pstats.Stats()
-    joined_primcalls = defaultdict(list)
-    joined_totcalls = defaultdict(list)
-    joined_tottime = defaultdict(list)
-    joined_cumtime = defaultdict(list)
+    farray = lambda: np.zeros(len(filenames), dtype=np.float64)
+    joined_primcalls = defaultdict(farray)
+    joined_totcalls = defaultdict(farray)
+    joined_tottime = defaultdict(farray)
+    joined_cumtime = defaultdict(farray)
 
     if verbose:
         print("Combining profiles:")
@@ -301,10 +312,10 @@ def combine_profiles(directory, filenames, verbose=False):
         summed_stats.add(stats)
 
         for func, (primcalls, totcalls, tottime, cumtime, callers) in stats.stats.items():
-            joined_primcalls[func].append(primcalls)
-            joined_totcalls[func].append(totcalls)
-            joined_tottime[func].append(tottime)
-            joined_cumtime[func].append(cumtime)
+            joined_primcalls[func][i] = primcalls
+            joined_totcalls[func][i] = totcalls
+            joined_tottime[func][i] = tottime
+            joined_cumtime[func][i] = cumtime
 
     n_processes = len(filenames)
     average_runtime = summed_stats.total_tt / n_processes
